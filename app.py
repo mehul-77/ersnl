@@ -210,7 +210,7 @@ if recommendation is not None:
     with col3_2:
         if recommendation == "Buy":
             st.success("**Analysis:** Strong positive indicators detected. Consider adding to your portfolio.")
-        elif recommendation == "Sell":
+        elif recommendation is "Sell":
             st.error("**Analysis:** Negative trends detected. Consider reducing your position.")
 
     st.markdown("---")
