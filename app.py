@@ -6,6 +6,7 @@ import yfinance as yf
 from textblob import TextBlob
 from GoogleNews import GoogleNews
 from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import load_model
 
 # Configuration
 st.set_page_config(
@@ -19,9 +20,8 @@ st.set_page_config(
 @st.cache_resource
 def load_models():
     try:
-        with open("random_forest_model.pkl", "rb") as f:
-            model = pickle.load(f)
-        with open("scaler.pkl", "rb") as f:
+        model = load_model("resnl_stock_sentiment_model.h5")
+        with open("scaler_resnl.pkl", "rb") as f:
             scaler = pickle.load(f)
         return model, scaler
     except Exception as e:
@@ -169,7 +169,7 @@ with col1:
 
                 # Scale the features and get prediction probabilities
                 scaled_data = scaler.transform(features)
-                pred_probs = model.predict_proba(scaled_data)[0]
+                pred_probs = model.predict(scaled_data)[0]
                 recommendation, confidence, probs = get_recommendation(pred_probs, model.classes_)
             
         except Exception as e:
