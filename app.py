@@ -16,6 +16,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Define class labels (adjust as needed)
+CLASSES = ["Sell", "Buy"]
+
 # Load models
 @st.cache_resource
 def load_models():
@@ -100,7 +103,7 @@ def prepare_features(stock_data, news_features):
         'Headlines_Count': [news_features['Headlines_Count']]
     })
 
-    # List of all features we created
+    # List of all features (order must match training)
     all_features = [
         "Adj Close", "Close", "High", "Low", "Open", "Volume",
         "Daily_Return", "Sentiment_Score", "Next_Day_Return",
@@ -108,7 +111,7 @@ def prepare_features(stock_data, news_features):
         "Sentiment_Numeric", "Headlines_Count"
     ]
     
-    # Ensure all required columns exist (if any are missing, add them with default 0)
+    # Ensure all required columns exist
     for feature in all_features:
         if feature not in features.columns:
             features[feature] = 0
@@ -127,13 +130,6 @@ def get_recommendation(probabilities, classes):
     recommendation = classes[max_index]
     confidence = probabilities[max_index]
     probs_dict = dict(zip(classes, probabilities))
-    
-    # Convert numerical recommendation to words
-    if recommendation == 1:
-        recommendation = "Buy"
-    elif recommendation == 0:
-        recommendation = "Sell"
-
     return recommendation, confidence, probs_dict
 
 # UI Components
@@ -157,20 +153,21 @@ with col1:
                 processed_data = calculate_technical_indicators(stock_data)
                 latest_data = processed_data.iloc[-1]
 
-                # Prepare features and then re-order columns based on the scaler's fitted feature names
+                # Prepare features and ensure the column order matches training
                 features = prepare_features(processed_data, news_features)
                 
-                # If the scaler has feature names from training, select only those columns
+                # If scaler has feature names (from training), re-order columns accordingly
                 if hasattr(scaler, "feature_names_in_"):
                     expected_features = list(scaler.feature_names_in_)
                     features = features[expected_features]
                 else:
                     st.warning("Scaler does not have feature names. Ensure the feature order matches training.")
 
-                # Scale the features and get prediction probabilities
+                # Scale the features and get prediction probabilities from the Keras model
                 scaled_data = scaler.transform(features)
                 pred_probs = model.predict(scaled_data)[0]
-                recommendation, confidence, probs = get_recommendation(pred_probs, model.classes_)
+                # Use our predefined CLASSES list since Keras models don't have model.classes_
+                recommendation, confidence, probs = get_recommendation(pred_probs, CLASSES)
             
         except Exception as e:
             st.error(f"Error processing data: {str(e)}")
