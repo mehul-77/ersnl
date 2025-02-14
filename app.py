@@ -7,7 +7,7 @@ from textblob import TextBlob
 from GoogleNews import GoogleNews
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import load_model
-from tensorflow.keras.layers import InputLayer
+from tensorflow.keras.layers import Input
 
 # Configuration
 st.set_page_config(
@@ -24,11 +24,7 @@ CLASSES = ["Sell", "Buy"]
 @st.cache_resource
 def load_models():
     try:
-        # Fix the InputLayer issue by customizing the deserialization process
-        def custom_objects():
-            return {'InputLayer': InputLayer}
-
-        model = load_model("resnl_stock_sentiment_model.h5", custom_objects=custom_objects())
+        model = load_model("resnl_stock_sentiment_model.h5", custom_objects={'Input': Input})
         with open("scaler_resnl.pkl", "rb") as f:
             scaler = pickle.load(f)
         return model, scaler
@@ -146,34 +142,29 @@ col1, col2 = st.columns([1, 3])
 
 with col1:
     ticker = st.text_input("Enter US Stock Ticker", value="AAPL")
-    
+    stock_data = pd.DataFrame()  # Initialize stock_data
+    latest_data = None
+    recommendation = None
+    confidence = None
+    probs = {}
+
     if model is not None and scaler is not None:
         try:
-            # Retrieve stock data and compute indicators
-            stock_data = get_stock_data(ticker)
-            news_features = get_news_sentiment(ticker)
+            with st.spinner("Fetching stock data..."):
+                stock_data = get_stock_data(ticker)
             if stock_data.empty:
                 st.warning("No stock data available.")
             else:
-                processed_data = calculate_technical_indicators(stock_data)
-                latest_data = processed_data.iloc[-1]
-
-                # Prepare features and ensure the column order matches training
-                features = prepare_features(processed_data, news_features)
-                
-                # If scaler has feature names (from training), re-order columns accordingly
-                if hasattr(scaler, "feature_names_in_"):
-                    expected_features = list(scaler.feature_names_in_)
-                    features = features[expected_features]
-                else:
-                    st.warning("Scaler does not have feature names. Ensure the feature order matches training.")
-
-                # Scale the features and get prediction probabilities from the Keras model
-                scaled_data = scaler.transform(features)
-                pred_probs = model.predict(scaled_data)[0]
-                # Use our predefined CLASSES list since Keras models don't have model.classes_
-                recommendation, confidence, probs = get_recommendation(pred_probs, CLASSES)
-            
+                with st.spinner("Fetching news sentiment..."):
+                    news_features = get_news_sentiment(ticker)
+                with st.spinner("Calculating technical indicators..."):
+                    processed_data = calculate_technical_indicators(stock_data)
+                    latest_data = processed_data.iloc[-1]
+                with st.spinner("Preparing features and making predictions..."):
+                    features = prepare_features(processed_data, news_features)
+                    scaled_data = scaler.transform(features)
+                    pred_probs = model.predict(scaled_data)[0]
+                    recommendation, confidence, probs = get_recommendation(pred_probs, CLASSES)
         except Exception as e:
             st.error(f"Error processing data: {str(e)}")
 
@@ -204,7 +195,7 @@ with col2:
 st.markdown("---")
 st.subheader("Investment Recommendation")
 
-if 'recommendation' in locals():
+if recommendation is not None:
     col3_1, col3_2 = st.columns([1, 2])
     
     with col3_1:
