@@ -7,7 +7,6 @@ from textblob import TextBlob
 from GoogleNews import GoogleNews
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import load_model
-from tensorflow.keras.layers import Input
 
 # Configuration
 st.set_page_config(
@@ -20,11 +19,23 @@ st.set_page_config(
 # Define class labels
 CLASSES = ["Sell", "Buy"]
 
+# Define a custom InputLayer to handle 'batch_shape' conversion
+from tensorflow.keras.layers import InputLayer as KerasInputLayer
+class CustomInputLayer(KerasInputLayer):
+    def __init__(self, **kwargs):
+        if "batch_shape" in kwargs:
+            # Rename 'batch_shape' to 'batch_input_shape' which is expected by current Keras versions
+            kwargs["batch_input_shape"] = kwargs.pop("batch_shape")
+        super().__init__(**kwargs)
+
 # Load models
 @st.cache_resource
 def load_models():
     try:
-        model = load_model("resnl_stock_sentiment_model.h5", custom_objects={'Input': Input})
+        # Use the custom InputLayer during model loading and disable compilation
+        model = load_model("resnl_stock_sentiment_model.h5", 
+                           custom_objects={"InputLayer": CustomInputLayer}, 
+                           compile=False)
         with open("scaler_resnl.pkl", "rb") as f:
             scaler = pickle.load(f)
         return model, scaler
@@ -38,7 +49,7 @@ model, scaler = load_models()
 def get_stock_data(ticker):
     stock = yf.Ticker(ticker)
     hist = stock.history(period="1y")
-    if hist.empty or 'Close' not in hist.columns:
+    if hist.empty or "Close" not in hist.columns:
         st.error("Error fetching data from Yahoo Finance: No data available or missing 'Close' column")
         return pd.DataFrame()
     return hist
@@ -51,12 +62,12 @@ def compute_rsi(series, window=14):
     return 100 - (100 / (1 + rs))
 
 def calculate_technical_indicators(df):
-    df['Daily_Return'] = df['Close'].pct_change()
-    df['Moving_Avg'] = df['Close'].rolling(window=14).mean()
-    df['Rolling_Std_Dev'] = df['Close'].rolling(window=14).std()
-    df['RSI'] = compute_rsi(df['Close'])
-    df['EMA'] = df['Close'].ewm(span=14).mean()
-    df['ROC'] = df['Close'].pct_change(periods=14)
+    df["Daily_Return"] = df["Close"].pct_change()
+    df["Moving_Avg"] = df["Close"].rolling(window=14).mean()
+    df["Rolling_Std_Dev"] = df["Close"].rolling(window=14).std()
+    df["RSI"] = compute_rsi(df["Close"])
+    df["EMA"] = df["Close"].ewm(span=14).mean()
+    df["ROC"] = df["Close"].pct_change(periods=14)
     return df.dropna()
 
 def get_news_sentiment(ticker):
@@ -67,41 +78,41 @@ def get_news_sentiment(ticker):
     sentiments = []
     headlines = []
     for result in results:
-        analysis = TextBlob(result['title'])
+        analysis = TextBlob(result["title"])
         sentiments.append(analysis.sentiment.polarity)
-        headlines.append(result['title'])
+        headlines.append(result["title"])
 
     return {
-        'Sentiment_Score': np.mean(sentiments) if sentiments else 0,
-        'Headlines': headlines,
-        'Sentiments': sentiments,
-        'Sentiment_Numeric': 1 if np.mean(sentiments) > 0 else -1,
-        'Headlines_Count': len(headlines)
+        "Sentiment_Score": np.mean(sentiments) if sentiments else 0,
+        "Headlines": headlines,
+        "Sentiments": sentiments,
+        "Sentiment_Numeric": 1 if np.mean(sentiments) > 0 else -1,
+        "Headlines_Count": len(headlines)
     }
 
 def prepare_features(stock_data, news_features):
-    if 'Close' not in stock_data.columns:
+    if "Close" not in stock_data.columns:
         st.error("Error: 'Close' column is missing in the stock data.")
         return pd.DataFrame()
     
     # Build a DataFrame using the last row of stock_data and news sentiment data.
     features = pd.DataFrame({
-        'Adj Close': [stock_data['Close'].iloc[-1]],  # Using 'Close' as a proxy for 'Adj Close'
-        'Close': [stock_data['Close'].iloc[-1]],
-        'High': [stock_data['High'].iloc[-1]],
-        'Low': [stock_data['Low'].iloc[-1]],
-        'Open': [stock_data['Open'].iloc[-1]],
-        'Volume': [stock_data['Volume'].iloc[-1]],
-        'Daily_Return': [stock_data['Daily_Return'].iloc[-1]],
-        'Sentiment_Score': [news_features['Sentiment_Score']],
-        'Next_Day_Return': [0],  # Placeholder
-        'Moving_Avg': [stock_data['Moving_Avg'].iloc[-1]],
-        'Rolling_Std_Dev': [stock_data['Rolling_Std_Dev'].iloc[-1]],
-        'RSI': [stock_data['RSI'].iloc[-1]],
-        'EMA': [stock_data['EMA'].iloc[-1]],
-        'ROC': [stock_data['ROC'].iloc[-1]],
-        'Sentiment_Numeric': [news_features['Sentiment_Numeric']],
-        'Headlines_Count': [news_features['Headlines_Count']]
+        "Adj Close": [stock_data["Close"].iloc[-1]],  # Using 'Close' as a proxy for 'Adj Close'
+        "Close": [stock_data["Close"].iloc[-1]],
+        "High": [stock_data["High"].iloc[-1]],
+        "Low": [stock_data["Low"].iloc[-1]],
+        "Open": [stock_data["Open"].iloc[-1]],
+        "Volume": [stock_data["Volume"].iloc[-1]],
+        "Daily_Return": [stock_data["Daily_Return"].iloc[-1]],
+        "Sentiment_Score": [news_features["Sentiment_Score"]],
+        "Next_Day_Return": [0],  # Placeholder
+        "Moving_Avg": [stock_data["Moving_Avg"].iloc[-1]],
+        "Rolling_Std_Dev": [stock_data["Rolling_Std_Dev"].iloc[-1]],
+        "RSI": [stock_data["RSI"].iloc[-1]],
+        "EMA": [stock_data["EMA"].iloc[-1]],
+        "ROC": [stock_data["ROC"].iloc[-1]],
+        "Sentiment_Numeric": [news_features["Sentiment_Numeric"]],
+        "Headlines_Count": [news_features["Headlines_Count"]]
     })
 
     # List of all features (order must match training)
@@ -171,7 +182,7 @@ with col1:
 with col2:
     if not stock_data.empty:
         st.subheader(f"{ticker} Technical Analysis")
-        st.line_chart(stock_data[['Close', 'Moving_Avg']])
+        st.line_chart(stock_data[["Close", "Moving_Avg"]])
         
         col2_1, col2_2, col2_3 = st.columns(3)
         with col2_1:
@@ -187,7 +198,7 @@ with col2:
 
         st.markdown("---")
         st.subheader("Recent News Headlines")
-        for headline, sentiment in zip(news_features['Headlines'], news_features['Sentiments']):
+        for headline, sentiment in zip(news_features["Headlines"], news_features["Sentiments"]):
             st.write(f"Headline: {headline}")
             st.write(f"Sentiment: {'Positive' if sentiment > 0 else 'Negative' if sentiment < 0 else 'Neutral'}")
             st.write("---")
@@ -210,7 +221,7 @@ if recommendation is not None:
     with col3_2:
         if recommendation == "Buy":
             st.success("**Analysis:** Strong positive indicators detected. Consider adding to your portfolio.")
-        elif recommendation is "Sell":
+        elif recommendation == "Sell":
             st.error("**Analysis:** Negative trends detected. Consider reducing your position.")
 
     st.markdown("---")
@@ -221,10 +232,10 @@ if recommendation is not None:
     results = gn.results()[:5]
     
     for news in results:
-        with st.expander(news['title']):
-            st.caption(news['media'])
-            st.write(news['desc'])
-            st.caption(news['date'])
+        with st.expander(news["title"]):
+            st.caption(news["media"])
+            st.write(news["desc"])
+            st.caption(news["date"])
 else:
     st.warning("Enter a valid stock ticker to see analysis")
 
