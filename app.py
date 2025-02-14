@@ -19,22 +19,30 @@ st.set_page_config(
 # Define class labels
 CLASSES = ["Sell", "Buy"]
 
-# Define a custom InputLayer to handle 'batch_shape' conversion
+# Define a custom InputLayer to handle the 'batch_shape' argument
 from tensorflow.keras.layers import InputLayer as KerasInputLayer
+
 class CustomInputLayer(KerasInputLayer):
     def __init__(self, **kwargs):
+        # If the config uses 'batch_shape', remap it to 'batch_input_shape'
         if "batch_shape" in kwargs:
-            # Rename 'batch_shape' to 'batch_input_shape' which is expected by current Keras versions
             kwargs["batch_input_shape"] = kwargs.pop("batch_shape")
-        super().__init__(**kwargs)
+        super(CustomInputLayer, self).__init__(**kwargs)
+
+    @classmethod
+    def from_config(cls, config):
+        # When loading from config, change 'batch_shape' to 'batch_input_shape'
+        if "batch_shape" in config:
+            config["batch_input_shape"] = config.pop("batch_shape")
+        return super(CustomInputLayer, cls).from_config(config)
 
 # Load models
 @st.cache_resource
 def load_models():
     try:
-        # Use the custom InputLayer during model loading and disable compilation
+        # Load the model with the custom InputLayer and disable compilation
         model = load_model("resnl_stock_sentiment_model.h5", 
-                           custom_objects={"InputLayer": CustomInputLayer}, 
+                           custom_objects={"InputLayer": CustomInputLayer},
                            compile=False)
         with open("scaler_resnl.pkl", "rb") as f:
             scaler = pickle.load(f)
