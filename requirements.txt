@@ -1,0 +1,8 @@
+streamlit
+yfinance
+pandas<2.0.0  # Use pandas 1.x for compatibility
+numpy==1.23.5  # Downgrade numpy
+scikit-learn==1.6.0
+textblob
+GoogleNews
+python-dotenv
