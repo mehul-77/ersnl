@@ -62,14 +62,12 @@ def get_news_sentiment(ticker):
     gn = GoogleNews()
     gn.search(f"{ticker} stock news")
     results = gn.results()[:10]  # Get top 10 news
-
     sentiments = []
     headlines = []
     for result in results:
         analysis = TextBlob(result['title'])
         sentiments.append(analysis.sentiment.polarity)
         headlines.append(result['title'])
-
     return {
         'Sentiment_Score': np.mean(sentiments) if sentiments else 0,
         'Headlines': headlines,
@@ -102,7 +100,6 @@ def prepare_features(stock_data, news_features):
         'Sentiment_Numeric': [news_features['Sentiment_Numeric']],
         'Headlines_Count': [news_features['Headlines_Count']]
     })
-
     # List of all features we created
     all_features = [
         "Adj Close", "Close", "High", "Low", "Open", "Volume",
@@ -115,7 +112,6 @@ def prepare_features(stock_data, news_features):
     for feature in all_features:
         if feature not in features.columns:
             features[feature] = 0
-
     return features[all_features]
 
 def get_recommendation(probabilities, classes):
@@ -141,18 +137,22 @@ col1, col2 = st.columns([1, 3])
 
 with col1:
     ticker = st.text_input("Enter US Stock Ticker", value="AAPL")
-    
+    stock_data = pd.DataFrame()  # Initialize stock_data to avoid NameError
+    latest_data = None
+    recommendation = None
+    confidence = None
+    probs = {}
+
     if model is not None and scaler is not None:
         try:
             # Retrieve stock data and compute indicators
             stock_data = get_stock_data(ticker)
-            news_features = get_news_sentiment(ticker)
             if stock_data.empty:
                 st.warning("No stock data available.")
             else:
+                news_features = get_news_sentiment(ticker)
                 processed_data = calculate_technical_indicators(stock_data)
                 latest_data = processed_data.iloc[-1]
-
                 # Prepare features and ensure column order
                 features = prepare_features(processed_data, news_features)
                 
@@ -162,17 +162,16 @@ with col1:
                     features = features[expected_features]
                 else:
                     st.warning("Scaler does not have feature names. Ensure feature order matches training.")
-
+                
                 # Scale features and get prediction
                 scaled_data = scaler.transform(features)
                 pred_probs = model.predict(scaled_data)[0]
                 recommendation, confidence, probs = get_recommendation(pred_probs, CLASSES)
-            
         except Exception as e:
             st.error(f"Error processing data: {str(e)}")
 
 with col2:
-    if not stock_data.empty:
+    if not stock_data.empty and latest_data is not None:
         st.subheader(f"{ticker} Technical Analysis")
         st.line_chart(stock_data[['Close', 'Moving_Avg']])
         
@@ -187,18 +186,19 @@ with col2:
             
         with col2_3:
             st.metric("News Sentiment", f"{news_features['Sentiment_Score']:.2f}")
-
+        
         st.markdown("---")
         st.subheader("Recent News Headlines")
         for headline, sentiment in zip(news_features['Headlines'], news_features['Sentiments']):
             st.write(f"Headline: {headline}")
             st.write(f"Sentiment: {'Positive' if sentiment > 0 else 'Negative' if sentiment < 0 else 'Neutral'}")
             st.write("---")
+    else:
+        st.warning("No stock data available to display technical analysis.")
 
 st.markdown("---")
 st.subheader("Investment Recommendation")
-
-if 'recommendation' in locals():
+if recommendation is not None:
     col3_1, col3_2 = st.columns([1, 2])
     
     with col3_1:
@@ -215,7 +215,7 @@ if 'recommendation' in locals():
             st.success("**Analysis:** Strong positive indicators detected. Consider adding to your portfolio.")
         elif recommendation == "Sell":
             st.error("**Analysis:** Negative trends detected. Consider reducing your position.")
-
+    
     st.markdown("---")
     st.subheader("Recent News Analysis")
     
