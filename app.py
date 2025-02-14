@@ -10,13 +10,13 @@ from tensorflow.keras.models import load_model
 
 # Configuration
 st.set_page_config(
-    page_title="US Stock Analyzer",
+    page_title="SentiStock: AI-Powered US Stock Analysing and Prediction",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Define class labels (adjust as needed)
+# Define class labels
 CLASSES = ["Sell", "Buy"]
 
 # Load models
@@ -103,7 +103,7 @@ def prepare_features(stock_data, news_features):
         'Headlines_Count': [news_features['Headlines_Count']]
     })
 
-    # List of all features (order must match training)
+    # List of all features we created
     all_features = [
         "Adj Close", "Close", "High", "Low", "Open", "Volume",
         "Daily_Return", "Sentiment_Score", "Next_Day_Return",
@@ -111,7 +111,7 @@ def prepare_features(stock_data, news_features):
         "Sentiment_Numeric", "Headlines_Count"
     ]
     
-    # Ensure all required columns exist
+    # Ensure all required columns exist (if any are missing, add them with default 0)
     for feature in all_features:
         if feature not in features.columns:
             features[feature] = 0
@@ -133,7 +133,7 @@ def get_recommendation(probabilities, classes):
     return recommendation, confidence, probs_dict
 
 # UI Components
-st.title("US Stock Analysis & Prediction Platform 📊")
+st.title("SentiStock: AI-Powered US Stock Insights 📊")
 st.markdown("---")
 
 # Main content
@@ -153,20 +153,19 @@ with col1:
                 processed_data = calculate_technical_indicators(stock_data)
                 latest_data = processed_data.iloc[-1]
 
-                # Prepare features and ensure the column order matches training
+                # Prepare features and ensure column order
                 features = prepare_features(processed_data, news_features)
                 
-                # If scaler has feature names (from training), re-order columns accordingly
+                # Handle scaler feature names
                 if hasattr(scaler, "feature_names_in_"):
                     expected_features = list(scaler.feature_names_in_)
                     features = features[expected_features]
                 else:
-                    st.warning("Scaler does not have feature names. Ensure the feature order matches training.")
+                    st.warning("Scaler does not have feature names. Ensure feature order matches training.")
 
-                # Scale the features and get prediction probabilities from the Keras model
+                # Scale features and get prediction
                 scaled_data = scaler.transform(features)
                 pred_probs = model.predict(scaled_data)[0]
-                # Use our predefined CLASSES list since Keras models don't have model.classes_
                 recommendation, confidence, probs = get_recommendation(pred_probs, CLASSES)
             
         except Exception as e:
@@ -234,3 +233,4 @@ else:
 
 st.markdown("---")
 st.caption("© 2025 US Stock Analyzer. For educational purposes only.")
+st.caption("Disclaimer: This is subject to risk read all market regulations and rules clearly before investing. No legal binding shall be attached to us.")
