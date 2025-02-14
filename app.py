@@ -10,7 +10,7 @@ from tensorflow.keras.models import load_model
 
 # Configuration
 st.set_page_config(
-    page_title="SentiStock: AI-Powered US Stock Analysing and Prediction",
+    page_title="SentiStock: AI-Powered US Stock Analysis and Prediction",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -35,12 +35,16 @@ model, scaler = load_models()
 
 # Helper functions
 def get_stock_data(ticker):
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period="1y")
-    if hist.empty or 'Close' not in hist.columns:
-        st.error("Error fetching data from Yahoo Finance: No data available or missing 'Close' column")
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="1y")
+        if hist.empty or 'Close' not in hist.columns:
+            st.error(f"No data available for ticker: {ticker}")
+            return pd.DataFrame()
+        return hist
+    except Exception as e:
+        st.error(f"Error fetching data from Yahoo Finance: {str(e)}")
         return pd.DataFrame()
-    return hist
 
 def compute_rsi(series, window=14):
     delta = series.diff()
@@ -80,10 +84,9 @@ def prepare_features(stock_data, news_features):
     if 'Close' not in stock_data.columns:
         st.error("Error: 'Close' column is missing in the stock data.")
         return pd.DataFrame()
-    
-    # Build a DataFrame using the last row of stock_data and news sentiment data.
+
     features = pd.DataFrame({
-        'Adj Close': [stock_data['Close'].iloc[-1]],  # Using 'Close' as a proxy for 'Adj Close'
+        'Adj Close': [stock_data['Close'].iloc[-1]],
         'Close': [stock_data['Close'].iloc[-1]],
         'High': [stock_data['High'].iloc[-1]],
         'Low': [stock_data['Low'].iloc[-1]],
@@ -100,28 +103,20 @@ def prepare_features(stock_data, news_features):
         'Sentiment_Numeric': [news_features['Sentiment_Numeric']],
         'Headlines_Count': [news_features['Headlines_Count']]
     })
-    # List of all features we created
+
+    # Ensure all required columns exist
     all_features = [
         "Adj Close", "Close", "High", "Low", "Open", "Volume",
         "Daily_Return", "Sentiment_Score", "Next_Day_Return",
         "Moving_Avg", "Rolling_Std_Dev", "RSI", "EMA", "ROC",
         "Sentiment_Numeric", "Headlines_Count"
     ]
-    
-    # Ensure all required columns exist (if any are missing, add them with default 0)
     for feature in all_features:
         if feature not in features.columns:
             features[feature] = 0
     return features[all_features]
 
 def get_recommendation(probabilities, classes):
-    """
-    Determines the recommendation based on the highest probability.
-    Returns:
-      - recommendation (str): The class label with the highest probability.
-      - confidence (float): The highest probability.
-      - probs_dict (dict): Dictionary of probabilities for each class.
-    """
     max_index = np.argmax(probabilities)
     recommendation = classes[max_index]
     confidence = probabilities[max_index]
@@ -150,23 +145,25 @@ with col1:
             if stock_data.empty:
                 st.warning("No stock data available.")
             else:
-                news_features = get_news_sentiment(ticker)
-                processed_data = calculate_technical_indicators(stock_data)
-                latest_data = processed_data.iloc[-1]
-                # Prepare features and ensure column order
-                features = prepare_features(processed_data, news_features)
-                
-                # Handle scaler feature names
-                if hasattr(scaler, "feature_names_in_"):
-                    expected_features = list(scaler.feature_names_in_)
-                    features = features[expected_features]
-                else:
-                    st.warning("Scaler does not have feature names. Ensure feature order matches training.")
-                
-                # Scale features and get prediction
-                scaled_data = scaler.transform(features)
-                pred_probs = model.predict(scaled_data)[0]
-                recommendation, confidence, probs = get_recommendation(pred_probs, CLASSES)
+                with st.spinner("Fetching news sentiment..."):
+                    news_features = get_news_sentiment(ticker)
+                with st.spinner("Calculating technical indicators..."):
+                    processed_data = calculate_technical_indicators(stock_data)
+                    latest_data = processed_data.iloc[-1]
+                with st.spinner("Preparing features and making predictions..."):
+                    features = prepare_features(processed_data, news_features)
+                    
+                    # Handle scaler feature names
+                    if hasattr(scaler, "feature_names_in_"):
+                        expected_features = list(scaler.feature_names_in_)
+                        features = features[expected_features]
+                    else:
+                        st.warning("Scaler does not have feature names. Ensure feature order matches training.")
+                    
+                    # Scale features and get prediction
+                    scaled_data = scaler.transform(features)
+                    pred_probs = model.predict(scaled_data)[0]
+                    recommendation, confidence, probs = get_recommendation(pred_probs, CLASSES)
         except Exception as e:
             st.error(f"Error processing data: {str(e)}")
 
@@ -229,7 +226,7 @@ if recommendation is not None:
             st.write(news['desc'])
             st.caption(news['date'])
 else:
-    st.warning("Enter a valid stock ticker to see analysis")
+    st.warning("Enter a valid stock ticker to see analysis.")
 
 st.markdown("---")
 st.caption("© 2025 US Stock Analyzer. For educational purposes only.")
