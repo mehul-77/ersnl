@@ -1,5 +1,5 @@
 pandas==1.5.3
-numpy>=1.22,<1.24
+numpy==1.23.5  # Downgraded to be compatible with TensorFlow 2.12.0
 yfinance==0.2.28
 textblob==0.17.1
 streamlit==1.28.0
